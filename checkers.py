@@ -5,6 +5,12 @@ import time
 from collections import namedtuple
 from itertools import cycle
 from random import randint
+import re
+import mysql.connector
+
+cnx = mysql.connector.connect(user='root', password='test', host='127.0.0.1', database='checkers')
+cursor = cnx.cursor()
+game_id = randint(0, 1000000000)
 # square - a number between 1 and 35, that isn't divisible by 9:
 #    . 35  . 34  . 33  . 32
 #   31  . 30  . 29  . 28  .
@@ -32,7 +38,7 @@ from random import randint
 # The square in the middle of the two edges will just be called
 # "the middle".
 SQUARES = [s for s in xrange(1, 36) if s%9 != 0]
-
+last_move = ""
 # a "jump" means both single and multiple jumps.
 
 class MovingErrors:
@@ -132,6 +138,34 @@ class State(namedtuple('State', 'turn reds whites kings')):
                 raise ValueError(MovingErrors.LongSimpleMove)
             if self.jump_avaliable(self[self.turn]):
                 raise ValueError(MovingErrors.JumpAvaliable)
+            print self.turn
+            if self.turn == 1:
+               f = open('winning_moves', 'a')
+               f.write(str(move))
+               f.write("\n")
+               f.close()
+               #print self.reds
+               #print move
+               state_str = str(self.whites) + ":" + str(self.reds)
+               cmd = 'INSERT INTO states_tbl (state) VALUES ("' + state_str + '");'
+               try:
+                   cursor.execute('INSERT INTO states_tbl (state) VALUES ("' + state_str + '");')
+                   cnx.commit()
+               except:
+                   cnx.rollback()
+               cmd1 = 'SELECT state_id from states_tbl where state = "' + state_str + '";'
+               cursor.execute(cmd1)
+               state_id_str = str(cursor.fetchall())
+               state_id = re.findall(r'\d+',state_id_str)[0]
+               action = str(move)
+               #check has action been done before
+               #check_action_cmd = 'select '
+               action_cmd = 'INSERT INTO actions_tbl (action, state_id, recent_game_id) VALUES ("' + action + '", ' + state_id + ','+ str(game_id) + ')'
+               try:
+                   cursor.execute(action_cmd)
+                   cnx.commit()
+               except:
+                   cnx.rollback()
             return State(self.opponent, *self.pieces_after_simple_move(move))
 
         elif are_edges(*move[0:2]):  # jump
@@ -143,7 +177,12 @@ class State(namedtuple('State', 'turn reds whites kings')):
             if any(middle(*pair) not in self[self.opponent]
                    for pair in pairs(move)):
                 raise ValueError(MovingErrors.WeirdCapturing)
-            # If a man jumps to the king's row, he can't make more jumps.
+            if self.turn == 1:
+               f = open('winning_moves', 'a')
+               f.write(str(move))
+               f.write("\n")
+               f.close()
+# If a man jumps to the king's row, he can't make more jumps.
             # Otherwise, if he can make more jumps the player must do them.
             new_board = self.pieces_after_jump(move)
             #if (move[-1] in self.KINGS_ROW[self.turn] and
@@ -152,6 +191,7 @@ class State(namedtuple('State', 'turn reds whites kings')):
             #temp_state = State(self.turn, *new_board)
             #if temp_state.jump_avaliable([move[-1]]):
             #    raise ValueError(MovingErrors.JumpAvaliable)
+            print move
             return State(self.opponent, *new_board)
 
          #elif are_double_edges(*move[0:2]): #double jump
@@ -368,6 +408,26 @@ def checkers(red, white):
     yield None, state
     for player in cycle((red, white)):
         if state.did_end():
+            #if state.reds
+            print "No reds: " + str(len(state.reds)) 
+            print "No whites: " + str(len(state.whites))
+            cmd_white_win = 'update actions_tbl set n_result = n_result + 1 where recent_game_id = ' + str(game_id) + ';'
+            if len(state.reds) == 0 and len(state.whites) != 0:
+                print "White wins " + str(game_id)
+                cursor.execute(cmd_white_win)
+                cnx.commit()
+            #print "added to database"
+        #except:
+            #print state_str
+        #    cnx.rollback()
+
+            elif len(state.whites) == 0:
+                print "Red wins " + str(game_id)
+                cmd_red_win = 'update actions_tbl set p_result = p_result + 1 where recent_game_id = ' + str(game_id) + ';';
+                cursor.execute(cmd_red_win)
+                cnx.commit()
+            else:
+                print "Stalemate " + str(game_id)
             return
         move = player(state)
         while True:
@@ -463,7 +523,27 @@ def SmartBot(dummy_state, error=None):
     divisible by 9 aren't skipped). It returns the move in the program's
     notation.
     """
-    #if error is not None:
+    if error is None:
+    #    print dummy_state 
+        f = open('winning_moves', 'a')
+        f.write(str(dummy_state.whites))
+        f.write(":")
+        f.write(str(dummy_state.reds))
+        f.write(":")
+    #    #f.write(inp)
+    #    #f.write("\n")
+        f.close()
+        #state_str = str(dummy_state.whites) + ":" + str(dummy_state.reds)
+        #cmd = 'INSERT INTO states_tbl (state) VALUES ("' + state_str + '");'
+        #cursor.execute(cmd)
+        #try:
+        #    cursor.execute('INSERT INTO states_tbl (state) VALUES ("' + state_str + '");')
+        #    cnx.commit()
+            #print "added to database"
+        #except:
+            #print state_str
+        #    cnx.rollback()
+            #print "couldnt add" + cmd
     #    print error
     #inp = raw_input("What's your move? Seperate the squares by dashes (-). ")
     inp = str(randint(0, 32)) + "-" + str(randint(0,32))
@@ -478,7 +558,18 @@ def SmartBot(dummy_state, error=None):
             #print MovingErrors.NotASquare
             inp = raw_input('Try again: ')
         else:
+            #f = open('winning_moves', 'a')
+            #f.write(str(dummy_state.whites))
+            #f.write(":")
+            #f.write(str(dummy_state.reds))
+            #f.write(":")
+            #f.write(inp)
+            #f.write("\n")
+            #f.close()
+            #print inp
             break
+    #last_move = inp
+    #print type(dummy_state.whites)
     return tuple(move)
 
 ### Utilities ###
@@ -510,11 +601,13 @@ def print_board(state, upper_color=State.RED):
         print ''.join(line)
         line = []
     print "##############"
-    time.sleep(1)
+    time.sleep(0.3)
 
 ###############
 
 if __name__ == '__main__':
     #play_display_checkers(UserPlayer, DumbBot, upper_color=State.WHITE)
-    play_display_checkers(DumbBot, DumbBot, upper_color=State.WHITE)
+    #play_display_checkers(DumbBot, DumbBot, upper_color=State.WHITE)
+    play_display_checkers(SmartBot, DumbBot, upper_color=State.WHITE)
+
 
