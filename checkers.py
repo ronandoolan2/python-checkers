@@ -5,6 +5,7 @@ import time
 from collections import namedtuple
 from itertools import cycle
 from random import randint
+import random
 import re
 import mysql.connector
 
@@ -159,13 +160,21 @@ class State(namedtuple('State', 'turn reds whites kings')):
                state_id = re.findall(r'\d+',state_id_str)[0]
                action = str(move)
                #check has action been done before
-               #check_action_cmd = 'select '
-               action_cmd = 'INSERT INTO actions_tbl (action, state_id, recent_game_id) VALUES ("' + action + '", ' + state_id + ','+ str(game_id) + ')'
-               try:
-                   cursor.execute(action_cmd)
+               check_action_cmd = 'select action_id from actions_tbl where action = "' + action + '" and state_id = ' + state_id + ';'
+               cursor.execute(check_action_cmd)
+               action_id_str = str(cursor.fetchall())
+               if action_id_str == "[]":
+                   action_cmd = 'INSERT INTO actions_tbl (action, state_id, recent_game_id) VALUES ("' + action + '", ' + state_id + ','+ str(game_id) + ')'
+                   try:
+                       cursor.execute(action_cmd)
+                       cnx.commit()
+                   except:
+                       cnx.rollback()
+               else:
+                   action_id = re.findall(r'\d+', action_id_str)[0]
+                   action_update_cmd = 'UPDATE actions_tbl set recent_game_id =' + str(game_id) + ' where action_id = ' + action_id + ';'
+                   cursor.execute(action_update_cmd)
                    cnx.commit()
-               except:
-                   cnx.rollback()
             return State(self.opponent, *self.pieces_after_simple_move(move))
 
         elif are_edges(*move[0:2]):  # jump
@@ -182,6 +191,34 @@ class State(namedtuple('State', 'turn reds whites kings')):
                f.write(str(move))
                f.write("\n")
                f.close()
+               state_str = str(self.whites) + ":" + str(self.reds)
+               cmd = 'INSERT INTO states_tbl (state) VALUES ("' + state_str + '");'
+               try:
+                   cursor.execute('INSERT INTO states_tbl (state) VALUES ("' + state_str + '");')
+                   cnx.commit()
+               except:
+                   cnx.rollback()
+               cmd1 = 'SELECT state_id from states_tbl where state = "' + state_str + '";'
+               cursor.execute(cmd1)
+               state_id_str = str(cursor.fetchall())
+               state_id = re.findall(r'\d+',state_id_str)[0]
+               action = str(move)
+               #check has action been done before
+               check_action_cmd = 'select action_id from actions_tbl where action = "' + action + '" and state_id = ' + state_id + ';'
+               cursor.execute(check_action_cmd)
+               action_id_str = str(cursor.fetchall())
+               if action_id_str == "[]":
+                   action_cmd = 'INSERT INTO actions_tbl (action, state_id, recent_game_id) VALUES ("' + action + '", ' + state_id + ','+ str(game_id) + ')'
+                   try:
+                       cursor.execute(action_cmd)
+                       cnx.commit()
+                   except:
+                       cnx.rollback()
+               else:
+                   action_id = re.findall(r'\d+', action_id_str)[0]
+                   action_update_cmd = 'UPDATE actions_tbl set recent_game_id =' + str(game_id) + ' where action_id = ' + action_id + ';'
+                   cursor.execute(action_update_cmd)
+                   cnx.commit()
 # If a man jumps to the king's row, he can't make more jumps.
             # Otherwise, if he can make more jumps the player must do them.
             new_board = self.pieces_after_jump(move)
@@ -524,15 +561,47 @@ def SmartBot(dummy_state, error=None):
     notation.
     """
     if error is None:
-    #    print dummy_state 
-        f = open('winning_moves', 'a')
-        f.write(str(dummy_state.whites))
-        f.write(":")
-        f.write(str(dummy_state.reds))
-        f.write(":")
-    #    #f.write(inp)
-    #    #f.write("\n")
-        f.close()
+        state_str = str(dummy_state.whites) + ":" + str(dummy_state.reds)
+        check_moves_cmd = 'SELECT state_id from states_tbl where state = "' + state_str + '";'
+        cursor.execute(check_moves_cmd)
+        #check has state occured before
+        state_id_str = str(cursor.fetchall())
+        if state_id_str != "[]":
+            state_id = re.findall(r'\d+',state_id_str)[0]
+            #check has action been done before
+            check_actions_cmd = 'select action, action_id from actions_tbl where state_id = ' + state_id + ';'
+            cursor.execute(check_actions_cmd)
+            actions = cursor.fetchall()
+            print "Number of possible actions " + str(len(actions))
+            print "Possible actions "# + str(actions)
+            #Get possiblity of success for each action
+            total = 0.4
+            possible_moves = []
+            possible_moves.append(total)
+            print type(possible_moves)
+            for act in actions:
+                get_success_chance_cmd = 'select p_result, n_result from actions_tbl where action_id = ' + str(act[1]) + ';'
+                cursor.execute(get_success_chance_cmd)
+                chances = cursor.fetchall()
+                print chances[0]
+                success_chance_str = ""
+                if (chances[0][0] + chances[0][1]) == 0:
+                   success_chance_str = "?"
+                   total = total + 0.4
+                   possible_moves.append(total)
+                else:
+                   success_chance = float(chances[0][0]) / (float(chances[0][0]) + float(chances[0][1]))
+                   success_chance_str = str(success_chance)
+                   if success_chance < 0.5:
+                       total = total + 0.4
+                       possible_moves.append(total)
+                   else:
+                       total = total + success_chance 
+                       possible_moves.append(total)
+                print "Move " + str(act[0]) + " success rating = " + success_chance_str
+                #Get p_result and n_result
+            print "total " + str(total) + " " + str(possible_moves)
+            print random.uniform(0, total)
         #state_str = str(dummy_state.whites) + ":" + str(dummy_state.reds)
         #cmd = 'INSERT INTO states_tbl (state) VALUES ("' + state_str + '");'
         #cursor.execute(cmd)
@@ -601,7 +670,7 @@ def print_board(state, upper_color=State.RED):
         print ''.join(line)
         line = []
     print "##############"
-    time.sleep(0.3)
+    time.sleep(0.1)
 
 ###############
 

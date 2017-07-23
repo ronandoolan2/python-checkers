@@ -31,13 +31,28 @@ state_id_str = str(cursor.fetchall())
 state_id = re.findall(r'\d+',state_id_str)[0]
 print state_id
 action = "(13, 17)" 
-
-action_cmd = 'INSERT INTO actions_tbl (action, state_id, p_result, n_result) VALUES ("' + action + '", ' + state_id + ', 0, 0)'
-try:
-    cursor.execute(action_cmd)
-    cnx.commit()
-except:
-    cnx.rollback()
+#check does action exist for state
+check_action_cmd = 'select action_id from actions_tbl where action = "' + action + '" and state_id = ' + state_id + ';'
+cursor.execute(check_action_cmd)
+action_id_str = str(cursor.fetchall())
+if action_id_str == "[]":
+    print "empty"
+    action_cmd = 'INSERT INTO actions_tbl (action, state_id, p_result, n_result) VALUES ("' + action + '", ' + state_id + ', 0, 0)'
+    try:
+        cursor.execute(action_cmd)
+        cnx.commit()
+    except:
+        cnx.rollback()
+else:
+    print action_id_str
+    action_id = re.findall(r'\d+', action_id_str)[0]
+    print "action_id" + str(action_id)
+#action_cmd = 'INSERT INTO actions_tbl (action, state_id, p_result, n_result) VALUES ("' + action + '", ' + state_id + ', 0, 0)'
+#try:
+#    cursor.execute(action_cmd)
+#    cnx.commit()
+#except:
+#    cnx.rollback()
 #reply = cursor.fetchall()
 #print reply
 
