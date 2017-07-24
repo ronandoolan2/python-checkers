@@ -269,6 +269,10 @@ class State(namedtuple('State', 'turn reds whites kings')):
     def did_end(self):
         """Return True if the game has ended, and False if the player
         can do a move."""
+        if (self.simple_move_avaliable(self[self.turn])):
+            print "simple move available"
+        if (self.jump_avaliable(self[self.turn])):
+            print "jump available"
         return (not self.simple_move_avaliable(self[self.turn]) and
                 not self.jump_avaliable(self[self.turn]))
 
@@ -282,6 +286,31 @@ class State(namedtuple('State', 'turn reds whites kings')):
         for piece in pieces:
             for adj in adjacents(piece):
                 if adj not in self.reds | self.whites:
+                    print str(piece) + " can move to " + str(adj)
+                    if piece == 31 and adj == 26:
+                        continue
+                    if piece == 23 and adj == 19:
+                        continue
+                    if piece == 22 and adj == 17:
+                        continue
+                    if piece == 5 and (adj != 1 or adj != 9):
+                        continue
+                    if piece == 13 and (adj != 9 or adj != 17):
+                        continue
+                    if piece == 21 and (adj != 17 or adj != 25):
+                        continue
+                    if piece == 29 and adj != 25:
+                        continue
+                    if piece == 4 and adj != 8:
+                        continue
+                    if piece == 12 and (adj != 16 or adj != 8):
+                        continue
+                    if piece == 20 and (adj != 16 or adj != 20):
+                        continue
+                    if piece == 28 and (adj != 32 or adj != 24):
+                        continue
+                    if piece in (5, 6, 7, 8, 13, 14, 15, 16, 21 ,22, 23, 24) and piece + 5 == adj:
+                        continue
                     return True
         return False
 
@@ -370,6 +399,8 @@ class State(namedtuple('State', 'turn reds whites kings')):
 def are_adjacents(s1, s2):
     """Return True if the two given squares are diagonally adjacent,
     False otherwise."""
+    #if s1 in (5, 6, 7, 8, 13, 14, 15, 16, 21, 22, 23, 24) and s2 > s1:
+    #    return abs(s1-s2) in (3, 4)
     return abs(s1-s2) in (4, 5)
 
 def are_edges(s1, s2):
@@ -670,7 +701,7 @@ def print_board(state, upper_color=State.RED):
         print ''.join(line)
         line = []
     print "##############"
-    time.sleep(0.1)
+    #time.sleep(0.1)
 
 ###############
 
