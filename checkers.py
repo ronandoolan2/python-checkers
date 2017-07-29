@@ -609,7 +609,9 @@ def SmartBot(dummy_state, error=None):
             total = 0.4
             possible_moves = []
             possible_moves.append(total)
-            print type(possible_moves)
+            move_list = []
+            move_list.append("(-1, -1)")
+            #print type(possible_moves)
             for act in actions:
                 get_success_chance_cmd = 'select p_result, n_result from actions_tbl where action_id = ' + str(act[1]) + ';'
                 cursor.execute(get_success_chance_cmd)
@@ -620,15 +622,18 @@ def SmartBot(dummy_state, error=None):
                    success_chance_str = "?"
                    total = total + 0.4
                    possible_moves.append(total)
+                   move_list.append(act[0])
                 else:
                    success_chance = float(chances[0][0]) / (float(chances[0][0]) + float(chances[0][1]))
                    success_chance_str = str(success_chance)
                    if success_chance < 0.5:
                        total = total + 0.4
                        possible_moves.append(total)
+                       move_list.append(act[0])
                    else:
                        total = total + success_chance 
                        possible_moves.append(total)
+                       move_list.append(act[0])
                 print "Move " + str(act[0]) + " success rating = " + success_chance_str
                 #Get p_result and n_result
             print "total " + str(total) + " " + str(possible_moves)
@@ -645,8 +650,29 @@ def SmartBot(dummy_state, error=None):
         #    cnx.rollback()
             #print "couldnt add" + cmd
     #    print error
+    if 'possible_moves' in locals():
+        #print "possible moves exists"
+        #print possible_moves
+        weighted_random_move_iter = random.uniform(0, total) 
+        k = 0
+        print len(possible_moves)
+        print len(move_list)
+        for move_chance in possible_moves:
+           if weighted_random_move_iter < move_chance:
+              print "move_chance " + str(move_chance)
+              print possible_moves[k]
+              print move_list[k]
+              weighted_random_move = move_list[k]
+              break
+           k += 1
     #inp = raw_input("What's your move? Seperate the squares by dashes (-). ")
-    inp = str(randint(0, 32)) + "-" + str(randint(0,32))
+    if 'weighted_random_move' in locals():
+        if weighted_random_move != "(-1, -1)":
+           inp = weighted_random_move
+        else:
+           inp = str(randint(0, 32)) + "-" + str(randint(0,32))   
+    else:
+        inp = str(randint(0, 32)) + "-" + str(randint(0,32))
     while True:
         try:
             human_squares = map(int, inp.split('-'))
