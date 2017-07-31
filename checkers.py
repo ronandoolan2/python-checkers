@@ -287,30 +287,30 @@ class State(namedtuple('State', 'turn reds whites kings')):
             for adj in adjacents(piece):
                 if adj not in self.reds | self.whites:
                     print str(piece) + " can move to " + str(adj)
-                    if piece == 31 and adj == 26:
-                        continue
-                    if piece == 23 and adj == 19:
-                        continue
-                    if piece == 22 and adj == 17:
-                        continue
-                    if piece == 5 and (adj != 1 or adj != 9):
-                        continue
-                    if piece == 13 and (adj != 9 or adj != 17):
-                        continue
-                    if piece == 21 and (adj != 17 or adj != 25):
-                        continue
-                    if piece == 29 and adj != 25:
-                        continue
-                    if piece == 4 and adj != 8:
-                        continue
-                    if piece == 12 and (adj != 16 or adj != 8):
-                        continue
-                    if piece == 20 and (adj != 16 or adj != 20):
-                        continue
-                    if piece == 28 and (adj != 32 or adj != 24):
-                        continue
-                    if piece in (5, 6, 7, 8, 13, 14, 15, 16, 21 ,22, 23, 24) and piece + 5 == adj:
-                        continue
+                    #if piece == 31 and adj == 26:
+                    #    continue
+                    #if piece == 23 and adj == 19:
+                    #    continue
+                    #if piece == 22 and adj == 17:
+                    #    continue
+                    #if piece == 5 and (adj != 1 or adj != 9):
+                    #    continue
+                    #if piece == 13 and (adj != 9 or adj != 17):
+                    #    continue
+                    #if piece == 21 and (adj != 17 or adj != 25):
+                    #    continue
+                    #if piece == 29 and adj != 25:
+                    #    continue
+                    #if piece == 4 and adj != 8:
+                    #    continue
+                    #if piece == 12 and (adj != 16 or adj != 8):
+                    #    continue
+                    #if piece == 20 and (adj != 16 or adj != 20):
+                    #    continue
+                    #if piece == 28 and (adj != 32 or adj != 24):
+                    #    continue
+                    #if piece in (5, 6, 7, 8, 13, 14, 15, 16, 21 ,22, 23, 24) and piece + 5 == adj:
+                    #    continue
                     return True
         return False
 
@@ -484,6 +484,9 @@ def checkers(red, white):
                 print "White wins " + str(game_id)
                 cursor.execute(cmd_white_win)
                 cnx.commit()
+                cmd_score_sheet = 'INSERT INTO results_tbl ( game_id , result) VALUES (' + str(game_id) + ', ' + str(1) +');'
+                cursor.execute(cmd_score_sheet)
+                cnx.commit()
             #print "added to database"
         #except:
             #print state_str
@@ -494,8 +497,16 @@ def checkers(red, white):
                 cmd_red_win = 'update actions_tbl set p_result = p_result + 1 where recent_game_id = ' + str(game_id) + ';';
                 cursor.execute(cmd_red_win)
                 cnx.commit()
+                cmd_score_sheet = 'INSERT INTO results_tbl ( game_id , result) VALUES (' + str(game_id) + ', ' + str(-1) +');'
+                cursor.execute(cmd_score_sheet)
+                cnx.commit()
+
             else:
                 print "Stalemate " + str(game_id)
+                cmd_score_sheet = 'INSERT INTO results_tbl ( game_id , result) VALUES (' + str(game_id) + ', ' + str(0) +');'
+                cursor.execute(cmd_score_sheet)
+                cnx.commit()
+
             return
         move = player(state)
         while True:
@@ -606,7 +617,7 @@ def SmartBot(dummy_state, error=None):
             print "Number of possible actions " + str(len(actions))
             print "Possible actions "# + str(actions)
             #Get possiblity of success for each action
-            total = 0.4
+            total = 2 
             possible_moves = []
             possible_moves.append(total)
             move_list = []
@@ -620,18 +631,18 @@ def SmartBot(dummy_state, error=None):
                 success_chance_str = ""
                 if (chances[0][0] + chances[0][1]) == 0:
                    success_chance_str = "?"
-                   total = total + 0.4
+                   total = total + 0.2 
                    possible_moves.append(total)
                    move_list.append(act[0])
                 else:
                    success_chance = float(chances[0][0]) / (float(chances[0][0]) + float(chances[0][1]))
                    success_chance_str = str(success_chance)
                    if success_chance < 0.5:
-                       total = total + 0.4
+                       total = total + 0
                        possible_moves.append(total)
                        move_list.append(act[0])
                    else:
-                       total = total + success_chance 
+                       total = total + 5*success_chance*success_chance 
                        possible_moves.append(total)
                        move_list.append(act[0])
                 print "Move " + str(act[0]) + " success rating = " + success_chance_str
@@ -668,7 +679,9 @@ def SmartBot(dummy_state, error=None):
     #inp = raw_input("What's your move? Seperate the squares by dashes (-). ")
     if 'weighted_random_move' in locals():
         if weighted_random_move != "(-1, -1)":
-           inp = weighted_random_move
+           move_squares = re.findall(r'\b\d+\b', weighted_random_move)
+           inp = str(move_squares[0]) + '-' + str(move_squares[1])
+           print inp
         else:
            inp = str(randint(0, 32)) + "-" + str(randint(0,32))   
     else:
@@ -727,7 +740,7 @@ def print_board(state, upper_color=State.RED):
         print ''.join(line)
         line = []
     print "##############"
-    #time.sleep(0.1)
+    #time.sleep(1)
 
 ###############
 
