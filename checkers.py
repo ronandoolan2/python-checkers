@@ -8,6 +8,7 @@ from random import randint
 import random
 import re
 import mysql.connector
+import os
 
 cnx = mysql.connector.connect(user='root', password='test', host='127.0.0.1', database='checkers')
 cursor = cnx.cursor()
@@ -157,6 +158,16 @@ class State(namedtuple('State', 'turn reds whites kings')):
                cmd1 = 'SELECT state_id from states_tbl where state = "' + state_str + '";'
                cursor.execute(cmd1)
                state_id_str = str(cursor.fetchall())
+               #if state_id_str == "[]":
+               #    cmd = 'INSERT INTO states_tbl (state) VALUES ("' + state_str + '");'
+               #    try:
+               #        cursor.execute('INSERT INTO states_tbl (state) VALUES ("' + state_str + '");')
+               #        cnx.commit()
+               #    except:
+               #        cnx.rollback()
+               #    cursor.execute(cmd1)
+               #    state_id_str = str(cursor.fetchall())
+
                state_id = re.findall(r'\d+',state_id_str)[0]
                action = str(move)
                #check has action been done before
@@ -386,6 +397,64 @@ class State(namedtuple('State', 'turn reds whites kings')):
         captured = {middle(*p) for p in single_jumps}
         player = self[self.turn] - {move[0]} | {move[-1]}
         opponent = self[self.opponent] - captured
+        if self.turn == 2:
+            print "taken"
+            print captured
+            print player
+            print opponent
+            state_str = str(player) + ":" + str(opponent)
+            print state_str
+            find_state_id = 'SELECT state_id from states_tbl where state = "' + state_str + '";'
+            print find_state_id
+            cursor.execute(find_state_id)
+            state_str_id = str(cursor.fetchall())
+            print state_str_id
+            if state_str_id != "[]":
+                state_id = re.findall(r'\d+',state_str_id)[0]
+
+            else:
+                cmd = 'INSERT INTO states_tbl (state) VALUES ("' + state_str + '");'
+                cursor.execute(cmd)
+                try:
+                    cnx.commit()
+                except:
+                    cnx.rollback()
+                cursor.execute(find_state_id)
+                state_id_str = str(cursor.fetchall())
+                print state_id_str
+                state_id = re.findall(r'\d+',state_id_str)[0]
+                print state_id 
+            print state_id
+            f1 = open('winning_moves', "r")
+            last_line = f1.readlines()[-1]
+            f1.close()
+            print "last line" + last_line
+            find_action_id = 'SELECT action_id from actions_tbl where state_id =' + state_id + ' and action = "' + last_line + '";'
+            cursor.execute(find_action_id)
+            action_str_id = str(cursor.fetchall())
+            print find_action_id
+            if action_str_id != "[]":
+                action_id = re.findall(r'\d+',action_str_id)[0]
+                print action_id
+                update_action = 'update actions_tbl set n_result = n_result + 10 where action_id = ' + action_id + ';'
+                cursor.execute(update_action)
+                try:
+                    cnx.commit()
+                except:
+                    cnx.rollback()
+            else:
+                add_action = 'INSERT INTO actions_tbl (action, state_id, n_result, recent_game_id) VALUES ("' + last_line + '", ' + str(state_id) + ', ' + str(10) + ', ' + str(game_id) + ');'
+                cursor.execute(add_action)
+                try:
+                    cnx.commit()
+                except:
+                    cnx.rollback()
+
+        #get_latest_move_cmd = "SELECT action_id, state_id FROM latest_move ORDER BY move_id DESC LIMIT 1;"
+        #cursor.execute(get_latest_move_cmd)
+        #latest_str = cursor.fetchall()
+        #print latest_str
+         
         if move[0] in self.kings:
             kings = self.kings - {move[0]} | {move[-1]}
         else:
@@ -479,7 +548,7 @@ def checkers(red, white):
             #if state.reds
             print "No reds: " + str(len(state.reds)) 
             print "No whites: " + str(len(state.whites))
-            cmd_white_win = 'update actions_tbl set n_result = n_result + 1 where recent_game_id = ' + str(game_id) + ';'
+            cmd_white_win = 'update actions_tbl set n_result = n_result + ' + str(len(state.whites)) + ' where recent_game_id = ' + str(game_id) + ';'
             if len(state.reds) == 0 and len(state.whites) != 0:
                 print "White wins " + str(game_id)
                 cursor.execute(cmd_white_win)
@@ -494,7 +563,7 @@ def checkers(red, white):
 
             elif len(state.whites) == 0:
                 print "Red wins " + str(game_id)
-                cmd_red_win = 'update actions_tbl set p_result = p_result + 1 where recent_game_id = ' + str(game_id) + ';';
+                cmd_red_win = 'update actions_tbl set p_result = p_result + ' + str(len(state.reds)) + ' where recent_game_id = ' + str(game_id) + ';';
                 cursor.execute(cmd_red_win)
                 cnx.commit()
                 cmd_score_sheet = 'INSERT INTO results_tbl ( game_id , result) VALUES (' + str(game_id) + ', ' + str(-1) +');'
@@ -631,18 +700,18 @@ def SmartBot(dummy_state, error=None):
                 success_chance_str = ""
                 if (chances[0][0] + chances[0][1]) == 0:
                    success_chance_str = "?"
-                   total = total + 0.2 
+                   total = 0 
                    possible_moves.append(total)
                    move_list.append(act[0])
                 else:
                    success_chance = float(chances[0][0]) / (float(chances[0][0]) + float(chances[0][1]))
                    success_chance_str = str(success_chance)
                    if success_chance < 0.5:
-                       total = total + 0
+                       total =  0
                        possible_moves.append(total)
                        move_list.append(act[0])
                    else:
-                       total = total + 5*success_chance*success_chance 
+                       total = 5*success_chance*success_chance 
                        possible_moves.append(total)
                        move_list.append(act[0])
                 print "Move " + str(act[0]) + " success rating = " + success_chance_str
@@ -669,12 +738,15 @@ def SmartBot(dummy_state, error=None):
         print len(possible_moves)
         print len(move_list)
         for move_chance in possible_moves:
-           if weighted_random_move_iter < move_chance:
-              print "move_chance " + str(move_chance)
-              print possible_moves[k]
-              print move_list[k]
-              weighted_random_move = move_list[k]
-              break
+           #if weighted_random_move_iter < move_chance:
+           #   print "move_chance " + str(move_chance)
+           #   print possible_moves[k]
+           #   print move_list[k]
+           #   weighted_random_move = move_list[k]
+           #   break
+           if possible_moves[k] == max(possible_moves):
+               weighted_random_move = move_list[k]
+               break
            k += 1
     #inp = raw_input("What's your move? Seperate the squares by dashes (-). ")
     if 'weighted_random_move' in locals():
@@ -697,18 +769,70 @@ def SmartBot(dummy_state, error=None):
             #print MovingErrors.NotASquare
             inp = raw_input('Try again: ')
         else:
-            #f = open('winning_moves', 'a')
-            #f.write(str(dummy_state.whites))
-            #f.write(":")
-            #f.write(str(dummy_state.reds))
-            #f.write(":")
-            #f.write(inp)
-            #f.write("\n")
-            #f.close()
+            f = open('winning_moves', 'a')
+            f.write(str(dummy_state.whites))
+            f.write(":")
+            f.write(str(dummy_state.reds))
+            f.write(":")
+            f.write(inp)
+            f.write("\n")
+            f.close()
+#            state_str = str(dummy_state.whites) + ":" + str(dummy_state.reds)
+#            check_moves_cmd = 'SELECT state_id from states_tbl where state = "' + state_str + '";'
+#            cursor.execute(check_moves_cmd)
+#            #check has state occured before
+#            state_id_str = str(cursor.fetchall())
+#
+#            print state_id_str
+#            if state_id_str != "[]":
+#                state_id = re.findall(r'\d+',state_id_str)[0]
+#            else:
+#                state_str = str(dummy_state.whites) + ":" + str(dummy_state.reds)
+#                cmd = 'INSERT INTO states_tbl (state) VALUES ("' + state_str + '");'
+#                try:
+#                    cursor.execute('INSERT INTO states_tbl (state) VALUES ("' + state_str + '");')
+#                    cnx.commit()
+#                except:
+#                    cnx.rollback()
+#                cursor.execute(check_moves_cmd)
+#            #check has state occured before
+#                state_id_str = str(cursor.fetchall())
+#                state_id = re.findall(r'\d+',state_id_str)[0]
+#            search_act = str(inp) 
+#            search_act_cmd = 'SELECT action_id from actions_tbl where action = "' + search_act + '" and state_id = "' + state_id + '";'
+#            print search_act_cmd
+#            cursor.execute(search_act_cmd)
+#            action_str = cursor.fetchall()
+#            print action_str
+#            if str(action_str) != "[]":
+#                print str(action_str[0])
+#                action_id = re.findall(r'\d+',str(action_str[0]))[0]
+#                last_move_update_cmd = 'INSERT INTO latest_move (action_id, state_id) VALUES ("' + action_id + '","' + state_id + '");'
+#                cursor.execute(last_move_update_cmd)
+#                #chances = cursor.fetchall()
+#                print last_move_update_cmd
+#            else:
+#                action_cmd = 'INSERT INTO actions_tbl (action, state_id, recent_game_id) VALUES ("' + search_act + '", ' + state_id + ','+ str(game_id) + ')'
+#                try:
+#                    cursor.execute(action_cmd)
+#                    cnx.commit()
+#                except:
+#                    cnx.rollback()
+#            search_act_cmd = 'SELECT action_id from actions_tbl where action = "' + search_act + '" and state_id = "' + state_id + '";'
+#            print search_act_cmd
+#            cursor.execute(search_act_cmd)
+#            action_str = cursor.fetchall()
+#            print str(action_str[0])
+#            action_id = re.findall(r'\d+',str(action_str[0]))[0]
+#            print action_id
+#            last_move_update_cmd = 'INSERT INTO latest_move (action_id, state_id) VALUES ("' + action_id + '","' + state_id + '");'
+#            print last_move_update_cmd 
+#            cursor.execute(last_move_update_cmd)
+#            #chances = cursor.fetchall()
+#            print last_move_update_cmd
+#
             #print inp
             break
-    #last_move = inp
-    #print type(dummy_state.whites)
     return tuple(move)
 
 ### Utilities ###
@@ -747,6 +871,7 @@ def print_board(state, upper_color=State.RED):
 if __name__ == '__main__':
     #play_display_checkers(UserPlayer, DumbBot, upper_color=State.WHITE)
     #play_display_checkers(DumbBot, DumbBot, upper_color=State.WHITE)
+    os.remove("winning_moves")
     play_display_checkers(SmartBot, DumbBot, upper_color=State.WHITE)
 
 
